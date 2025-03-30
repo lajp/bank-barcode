@@ -1,0 +1,10 @@
+[package]
+name = "bank-barcode"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+either = "1.13.0"
+iban = "0.1.7"
+thiserror = "2.0.11"
+time = { version = "0.3.37", features = ["formatting", "macros"] }

@@ -1,3 +1,12 @@
+//! Generate Finnish virtual bank barcodes (*pankkiviivakoodi*).
+//!
+//! This crate produces the digit string for both version 4 and version 5 of the
+//! Finnish virtual bank barcode as defined in the
+//! [Finanssiala specification](https://www.finanssiala.fi/wp-content/uploads/2021/03/Pankkiviivakoodi-opas.pdf).
+//!
+//! Build a [`Barcode`] through [`BarcodeBuilder`] and format it via its
+//! [`Display`](std::fmt::Display) implementation.
+
 use std::num::ParseIntError;
 
 use either::Either;
@@ -74,33 +83,50 @@ pub struct BarcodeBuilder {
     due_date: Option<Either<Date, (i32, u8, u8)>>,
 }
 
+/// Errors that may occur while building a [`Barcode`].
 #[derive(Debug, Clone, thiserror::Error)]
 pub enum BuilderError {
+    /// No account number was supplied to the builder.
     #[error("No account number specified")]
     NoAccount,
+    /// The provided account number string could not be parsed as an IBAN.
     #[error("Failed to parse account number {0}")]
     InvalidAccount(#[from] iban::ParseError),
+    /// The IBAN was valid but its country code is not `FI`.
     #[error("A non FI IBAN provided. Bank barcode may only be printed for IBAN accounts starting with FI")]
     AccountNotFinnish,
+    /// The total sum exceeds the maximum the barcode format can encode (999 999,99 €).
     #[error("The total sum is too large (over 999 999,99)")]
     SumTooLarge,
+    /// The cents value was outside the valid range `0..=99`.
     #[error("The amount of cents is invalid (not between 0..=99)")]
     InvalidCents,
+    /// The reference number is longer than the version allows
+    /// (20 digits for V4, 23 digits for V5).
     #[error(
         "The reference number is too large (the limit is 20 digits for V4 and 23 digits for V5)"
     )]
     ReferenceTooLarge,
+    /// The reference number could not be parsed as digits.
     #[error("Invalid reference")]
     InvalidReference(#[from] ParseIntError),
+    /// A V5 reference number does not start with the required `RF` prefix.
     #[error("Malformed reference: The reference for V5 has to start with 'RF'")]
     MalformedReference,
+    /// The supplied calendar date components do not form a valid date.
     #[error("Invalid date provided {0}")]
     InvalidDate(#[from] time::error::ComponentRange),
 }
 
 impl BarcodeBuilder {
-    /// Completes the builder and returns the `Barcode`.
-    /// Returns `BuilderError` on invalid values or missing account number.
+    /// Completes the builder and returns the [`Barcode`].
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`BuilderError`] if any field is missing or invalid:
+    /// no account number, an unparseable or non-Finnish IBAN, an out-of-range
+    /// sum or cents, an oversized or malformed reference number, or an
+    /// invalid due date.
     pub fn build(self) -> Result<Barcode, BuilderError> {
         let account_number = match self.account_number {
             Some(Either::Left(iban)) => iban,
@@ -116,7 +142,7 @@ impl BarcodeBuilder {
             return Err(BuilderError::InvalidCents);
         }
 
-        if self.euros >= 999999 {
+        if self.euros >= 999_999 {
             return Err(BuilderError::SumTooLarge);
         }
 
@@ -170,6 +196,7 @@ impl BarcodeBuilder {
     }
 
     /// Construct a `BarcodeBuilder` with `BarcodeVersion::V4`
+    #[must_use]
     pub fn v4() -> Self {
         Self::default().version(BarcodeVersion::V4)
     }
@@ -177,16 +204,20 @@ impl BarcodeBuilder {
     /// Construct a `BarcodeBuilder` with `BarcodeVersion::V5`
     ///
     /// NOTE: This is also the default value for the `version`
+    #[must_use]
     pub fn v5() -> Self {
         Self::default().version(BarcodeVersion::V5)
     }
 
     /// Set the `BarcodeVersion` of the barcode. Defaults to `BarcodeVersion::V5`.
+    #[must_use]
     pub fn version(self, version: BarcodeVersion) -> Self {
         Self { version, ..self }
     }
 
     /// Specify the account number. The account number is the only *mandatory* field.
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // public API: keep `impl ToString` to accept any displayable value
     pub fn account_number(self, account: impl ToString) -> Self {
         Self {
             account_number: Some(Either::Right(account.to_string())),
@@ -195,6 +226,7 @@ impl BarcodeBuilder {
     }
 
     /// Specify the account number as an `iban::Iban` value. The account number is the only *mandatory* field.
+    #[must_use]
     pub fn account_number_iban(self, account: iban::Iban) -> Self {
         Self {
             account_number: Some(Either::Left(account)),
@@ -203,6 +235,7 @@ impl BarcodeBuilder {
     }
 
     /// Specify the amount of euros, default values is 0
+    #[must_use]
     pub fn euros(self, euros: u32) -> Self {
         Self { euros, ..self }
     }
@@ -212,11 +245,13 @@ impl BarcodeBuilder {
     ///
     /// *NOTE*: if you want to specify the total amount of cents, use `BarcodeBuilder::sum`
     /// instead.
+    #[must_use]
     pub fn cents(self, cents: u8) -> Self {
         Self { cents, ..self }
     }
 
     /// Specify the total amount of cents in the sum. The default value is 0.
+    #[must_use]
     pub fn sum(self, sum: u32) -> Self {
         Self {
             euros: sum / 100,
@@ -228,6 +263,8 @@ impl BarcodeBuilder {
     /// Specify the reference number. The default value is 0.
     /// The reference number is a maximum of 20 digits for `BarcodeVersion::V4` and 23 digits for
     /// `BarcodeVersion::V5`. The `BarcodeVersion::V5` reference number starts with the string "RF"
+    #[must_use]
+    #[allow(clippy::needless_pass_by_value)] // public API: keep `impl ToString` to accept any displayable value
     pub fn reference(self, reference: impl ToString) -> Self {
         Self {
             reference: Some(reference.to_string()),
@@ -236,6 +273,7 @@ impl BarcodeBuilder {
     }
 
     /// Specify the due date as a `time::date`. Default value: no due date.
+    #[must_use]
     pub fn due_date(self, due_date: Date) -> Self {
         Self {
             due_date: Some(Either::Left(due_date)),
@@ -245,6 +283,7 @@ impl BarcodeBuilder {
 
     /// Specify the due date as year, month and day. Default value: no due date.
     /// If invalid date is specified, the call to `BarcodeBuilder::build` will fail.
+    #[must_use]
     pub fn calendar_due_date(self, year: i32, month: u8, day: u8) -> Self {
         Self {
             due_date: Some(Either::Right((year, month, day))),
@@ -255,6 +294,7 @@ impl BarcodeBuilder {
 
 impl Barcode {
     /// Construct a builder, for more information see `BarcodeBuilder`.
+    #[must_use]
     pub fn builder() -> BarcodeBuilder {
         BarcodeBuilder::default()
     }
@@ -273,22 +313,20 @@ impl std::fmt::Display for Barcode {
                     self.euros,
                     self.cents,
                     self.reference,
-                    self.due_date
-                        .map(|d| d
-                            .format(format_description!(
-                                version = 2,
-                                "[year repr:last_two][month][day]"
-                            ))
-                            .expect("bug: formatting failed"))
-                        .unwrap_or("000000".into())
+                    self.due_date.map_or("000000".into(), |d| d
+                        .format(format_description!(
+                            version = 2,
+                            "[year repr:last_two][month][day]"
+                        ))
+                        .expect("bug: formatting failed"))
                 )
             }
             BarcodeVersion::V5 => {
-                let ref_str = self.reference.to_string();
+                let ref_str = self.reference.clone();
                 let ref_nro = if ref_str.len() < 2 {
                     format!("{:0<2}", self.reference)
                 } else {
-                    dbg!(ref_str)
+                    ref_str
                 };
 
                 write!(
@@ -299,14 +337,12 @@ impl std::fmt::Display for Barcode {
                     self.cents,
                     &ref_nro[..2],
                     &ref_nro[2..],
-                    self.due_date
-                        .map(|d| d
-                            .format(format_description!(
-                                version = 2,
-                                "[year repr:last_two][month][day]"
-                            ))
-                            .expect("bug: formatting failed"))
-                        .unwrap_or("000000".into())
+                    self.due_date.map_or("000000".into(), |d| d
+                        .format(format_description!(
+                            version = 2,
+                            "[year repr:last_two][month][day]"
+                        ))
+                        .expect("bug: formatting failed"))
                 )
             }
         }

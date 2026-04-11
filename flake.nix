@@ -92,6 +92,16 @@
             fenix.packages.${system}.rust-analyzer
             pkgs.cargo-edit
             pkgs.cargo-watch
+          ];
+        };
+
+        # Separate shell for `cargo semver-checks`. The tool requires a much
+        # newer rustc than this crate's MSRV (>=1.91 as of cargo-semver-checks
+        # 0.47), so it cannot share the pinned toolchain used by the default
+        # shell or the build/test/clippy checks.
+        devShells.semver = pkgs.mkShell {
+          packages = [
+            fenix.packages.${system}.stable.toolchain
             pkgs.cargo-semver-checks
           ];
         };

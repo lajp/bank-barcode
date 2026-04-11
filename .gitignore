@@ -4,6 +4,8 @@
 /result
 /result-*
 
+.direnv
+.envrc
 
 # Added by cargo
 #

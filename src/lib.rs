@@ -93,7 +93,9 @@ pub enum BuilderError {
     #[error("Failed to parse account number {0}")]
     InvalidAccount(#[from] iban::ParseError),
     /// The IBAN was valid but its country code is not `FI`.
-    #[error("A non FI IBAN provided. Bank barcode may only be printed for IBAN accounts starting with FI")]
+    #[error(
+        "A non FI IBAN provided. Bank barcode may only be printed for IBAN accounts starting with FI"
+    )]
     AccountNotFinnish,
     /// The total sum exceeds the maximum the barcode format can encode (999 999,99 €).
     #[error("The total sum is too large (over 999 999,99)")]

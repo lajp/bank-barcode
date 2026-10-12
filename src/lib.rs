@@ -17,6 +17,9 @@ use time::{Date, Month};
 mod tests;
 
 /// A representation on different versions of the bank barcode
+///
+/// If no version is set on the [`BarcodeBuilder`], it is detected from the reference number:
+/// references starting with "RF" produce `BarcodeVersion::V5`, others `BarcodeVersion::V4`.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy, Default)]
 pub enum BarcodeVersion {
@@ -63,8 +66,8 @@ pub struct Barcode {
 ///
 /// # Usage
 /// ```rust
+/// // The reference doesn't start with "RF", so a V4 barcode is produced
 /// let barcode = bank_barcode::Barcode::builder()
-///     .version(bank_barcode::BarcodeVersion::V4)
 ///     .account_number("FI16 8000 1400 0502 67")
 ///     .reference(12345)
 ///     .calendar_due_date(2025, 2, 26)
@@ -75,7 +78,7 @@ pub struct Barcode {
 /// ```
 #[derive(Debug, Default)]
 pub struct BarcodeBuilder {
-    version: BarcodeVersion,
+    version: Option<BarcodeVersion>,
     account_number: Option<Either<Iban, String>>,
     euros: u32,
     cents: u8,
@@ -148,7 +151,14 @@ impl BarcodeBuilder {
             return Err(BuilderError::SumTooLarge);
         }
 
-        let reference = match self.version {
+        let version = self
+            .version
+            .unwrap_or_else(|| match self.reference.as_deref() {
+                Some(reference) if !reference.starts_with("RF") => BarcodeVersion::V4,
+                _ => BarcodeVersion::default(),
+            });
+
+        let reference = match version {
             BarcodeVersion::V4 => {
                 if let Some(rn) = self.reference.as_ref() {
                     let _: u128 = rn.parse()?;
@@ -188,7 +198,7 @@ impl BarcodeBuilder {
         };
 
         Ok(Barcode {
-            version: self.version,
+            version,
             account_number,
             euros: self.euros,
             cents: self.cents,
@@ -204,17 +214,22 @@ impl BarcodeBuilder {
     }
 
     /// Construct a `BarcodeBuilder` with `BarcodeVersion::V5`
-    ///
-    /// NOTE: This is also the default value for the `version`
     #[must_use]
     pub fn v5() -> Self {
         Self::default().version(BarcodeVersion::V5)
     }
 
-    /// Set the `BarcodeVersion` of the barcode. Defaults to `BarcodeVersion::V5`.
+    /// Set the `BarcodeVersion` of the barcode.
+    ///
+    /// If not set, the version is detected from the reference number: a reference starting
+    /// with "RF" produces `BarcodeVersion::V5` and any other reference `BarcodeVersion::V4`.
+    /// Without a reference, the version defaults to `BarcodeVersion::V5`.
     #[must_use]
     pub fn version(self, version: BarcodeVersion) -> Self {
-        Self { version, ..self }
+        Self {
+            version: Some(version),
+            ..self
+        }
     }
 
     /// Specify the account number. The account number is the only *mandatory* field.
@@ -264,7 +279,10 @@ impl BarcodeBuilder {
 
     /// Specify the reference number. The default value is 0.
     /// The reference number is a maximum of 20 digits for `BarcodeVersion::V4` and 23 digits for
-    /// `BarcodeVersion::V5`. The `BarcodeVersion::V5` reference number starts with the string "RF"
+    /// `BarcodeVersion::V5`. The `BarcodeVersion::V5` reference number starts with the string "RF".
+    ///
+    /// Unless the version is set explicitly with `BarcodeBuilder::version`, it is detected from
+    /// the reference number.
     #[must_use]
     #[allow(clippy::needless_pass_by_value)] // public API: keep `impl ToString` to accept any displayable value
     pub fn reference(self, reference: impl ToString) -> Self {

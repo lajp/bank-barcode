@@ -22,8 +22,8 @@ Then build a barcode through `BarcodeBuilder` and format it via its
 `Display` implementation:
 
 ```rust
+// The reference doesn't start with "RF", so a V4 barcode is produced
 let barcode = bank_barcode::Barcode::builder()
-    .version(bank_barcode::BarcodeVersion::V4)
     .account_number("FI16 8000 1400 0502 67")
     .reference(12345)
     .calendar_due_date(2025, 2, 26)
@@ -34,6 +34,10 @@ let barcode = bank_barcode::Barcode::builder()
 
 println!("{barcode}");
 ```
+
+Unless set explicitly with `.version(...)`, the barcode version is detected
+from the reference: references starting with `RF` produce a V5 barcode and other
+references a V4 barcode. Without a reference, V5 is used.
 
 A runnable end-to-end example lives in [`examples/basic.rs`](examples/basic.rs)
 and can be invoked with:

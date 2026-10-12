@@ -1,6 +1,6 @@
 use time::{Date, Month};
 
-use crate::{Barcode, BarcodeBuilder, BarcodeVersion};
+use crate::{Barcode, BarcodeBuilder, BarcodeVersion, BuilderError};
 
 #[test]
 fn v4_1() {
@@ -298,4 +298,59 @@ fn v5_9() {
         "592393900010033910000000295000000000000001357914991224",
         code.to_string()
     );
+}
+
+#[test]
+fn detect_v4_from_reference() {
+    let code = Barcode::builder()
+        .account_number("FI79 4405 2020 0360 82")
+        .sum(488_315)
+        .reference("868516259619897")
+        .calendar_due_date(2010, 6, 12)
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        "479440520200360820048831500000000868516259619897100612",
+        code.to_string()
+    );
+}
+
+#[test]
+fn detect_v5_from_reference() {
+    let code = Barcode::builder()
+        .account_number("FI79 4405 2020 0360 82")
+        .sum(488_315)
+        .reference("RF09868516259619897")
+        .calendar_due_date(2010, 6, 12)
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        "579440520200360820048831509000000868516259619897100612",
+        code.to_string()
+    );
+}
+
+#[test]
+fn detect_v5_without_reference() {
+    let code = Barcode::builder()
+        .account_number("FI73 3131 3001 0000 58")
+        .build()
+        .unwrap();
+
+    assert_eq!(
+        "573313130010000580000000000000000000000000000000000000",
+        code.to_string()
+    );
+}
+
+#[test]
+fn explicit_version_overrides_detection() {
+    let result = BarcodeBuilder::v5()
+        .account_number("FI79 4405 2020 0360 82")
+        .reference("868516259619897")
+        .build();
+
+    assert!(matches!(result, Err(BuilderError::MalformedReference)));
 }

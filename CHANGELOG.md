@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- The barcode version is now detected from the reference number when it is not
+  set explicitly with `BarcodeBuilder::version`: references starting with `RF`
+  produce a V5 barcode and other references a V4 barcode. Without a reference
+  the version still defaults to V5. Previously a non-`RF` reference without an
+  explicit version failed with `BuilderError::MalformedReference`.
+
 ## [0.2.0] – 2026-04-11
 
 ### Fixed

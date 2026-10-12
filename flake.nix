@@ -11,7 +11,7 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
 
-    treefmt-nix = {
+    treefmt-nix= {
       url = "github:numtide/treefmt-nix";
       inputs.nixpkgs.follows = "nixpkgs";
     };
@@ -94,6 +94,24 @@
             pkgs.cargo-watch
           ];
         };
+
+        apps.semver-checks =
+          let
+            script = pkgs.writeShellApplication {
+              name = "semver-check-app";
+              runtimeInputs = [
+                fenix.packages.${system}.stable.toolchain
+                pkgs.cargo-semver-checks
+              ];
+              text = ''
+                cargo semver-checks check-release
+              '';
+            };
+          in
+          {
+            type = "app";
+            program = "${pkgs.lib.getExe script}";
+          };
 
         # Separate shell for `cargo semver-checks`. The tool requires a much
         # newer rustc than this crate's MSRV (>=1.91 as of cargo-semver-checks

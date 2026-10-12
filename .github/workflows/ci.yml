@@ -71,4 +71,4 @@ jobs:
           purge-primary-key: never
 
       - name: cargo semver-checks check-release
-        run: nix develop --accept-flake-config .#semver -c cargo semver-checks check-release
+        run: nix run --accept-flake-config .#semver-checks
